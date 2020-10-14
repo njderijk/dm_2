@@ -6,7 +6,7 @@ library(randomForest)
 txt_d <- Corpus(DirSource("~/deceptive/allfortm_d"), readerControl = list(language="lat")) #specifies the exact folder where my text file(s) is for analysis with tm.
 txt_t <- Corpus(DirSource("~/truthful/allfortm_t"), readerControl = list(language="lat"))
 
-corpus <- Corpus(DirSource("C:/Users/Lil Tuna/Documents/GitHub/dm_2/all"), readerControl = list(language="lat"))
+corpus <- Corpus(DirSource("~/all"), readerControl = list(language="lat"))
 
 # Process
 corpus <- tm_map(txt_all, removeNumbers)
