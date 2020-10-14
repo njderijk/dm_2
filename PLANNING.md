@@ -2,11 +2,10 @@ Planning voor A2 (Deadline: 30 oktober)
 
 Taken:
 
-1. Multinomial naive Bayes (generative linear classifier),
-2. Regularized logistic regression (discriminative linear classifier),
-3. Classification trees, (flexible classifier) and
-4. Random forests (flexible classifier).
-
+1. Multinomial naive Bayes (generative linear classifier) & feature selection
+2. Regularized logistic regression (discriminative linear classifier) & feature selection
+3. Classification trees, (flexible classifier) & feature selection
+4. Random forests (flexible classifier) & out-of-bag evaluation
 
 640 reviews for training & hyper-parameter tuning.
 160 reviews for testing.
@@ -27,3 +26,24 @@ just unigrams?
 fake review?
 5. What are the five most important terms (features) pointing towards a
 genuine review?
+
+
+* Planning
+
+16 oktober
+* Kijken volgens welke template het verslag opgesteld moet worden
+* Introduction (Yasmin)
+* Data section (Noud)
+* Verder met initiële code (Rose) & alvast packages op een rijtje zetten die gebruikt kunnen worden
+
+
+21 oktober
+
+
+
+23 oktober
+
+
+
+28 oktober (of eerder)
+-> Inleveren, als het eerder kan graag want tentamen is een paar dagen erna.

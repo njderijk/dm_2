@@ -16,9 +16,11 @@ corpus <- tm_map(corpus, tolower)
 corpus <- tm_map(corpus, removeWords, stopwords("english"))
 corpus <- tm_map(corpus, stemDocument)
 
-dtm <- DocumentTermMatrix(txt_all)
-sparse <- removeSparseTerms(dtm, 0.995)
-freq <- DocumentTermMatrix(txt_all)
+dtm <- DocumentTermMatrix(corpus)
+sparse <- removeSparseTerms(corpus, 0.995)
+freq <- DocumentTermMatrix(corpus)
+
+
 
 tSparse = as.data.frame(as.matrix(sparse))
 colnames(tSparse) = make.names(colnames(sparse))
