@@ -39,14 +39,14 @@ genuine review?
 
 21 oktober
 * Exploratory Data Analysis
-  * Word clouds with pre-processed terms
-  * Text length / count of words (truthful vs. deceptive)
-  * Top 20 words before preprocessing ?
-  * Top 20 words after pre-processing
-  * Top 20 bigrams (n-gram analysis) 
-  * Sentiment analysis
-  * tf-idf 
-
+  * Word clouds with pre-processed terms (Noud)
+  * Text length / count of words (truthful vs. deceptive) (Yasmin)
+  * Top 20 words before preprocessing (Noud)
+  * Top 20 words after pre-processing (Noud)
+  * Top 20 bigrams (n-gram analysis) (Yasmin)
+  * Sentiment analysis (Noud)
+  * tf-idf (Yasmin)
+* Gelijktijdig met EDA tekst schrijven (Iedereen)
 
 
 23 oktober
