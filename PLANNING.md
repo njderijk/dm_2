@@ -38,6 +38,14 @@ genuine review?
 
 
 21 oktober
+* Exploratory Data Analysis
+  * Word clouds with pre-processed terms
+  * Text length / count of words (truthful vs. deceptive)
+  * Top 20 words before preprocessing ?
+  * Top 20 words after pre-processing
+  * Top 20 bigrams (n-gram analysis) 
+  * Sentiment analysis
+  * tf-idf 
 
 
 

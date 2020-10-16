@@ -7,6 +7,7 @@ library(quanteda)
 library(tidytext)
 library(qdap)
 library(ggplot2)
+library(readtext)
 
 # Create corpus
 # Negative deceptive 
@@ -48,8 +49,7 @@ dfm_corpus_d <- txt_c[txt_c$labels == "deceptive",] %>%
   corpus(text_field = "text") %>%
   tokens(remove_numbers = FALSE, remove_punct = TRUE, remove_symbols = TRUE, remove_separators = TRUE, split_hyphens	
  = TRUE, remove_url = TRUE) %>%
-  dfm() %>%
-  removeSparseTerms(0.995)
+  dfm()
 
 # Textplot wordcloud
 set.seed(100)
