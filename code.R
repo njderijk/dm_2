@@ -7,11 +7,18 @@ library(quanteda)
 library(tidytext)
 library(qdap)
 library(ggplot2)
+library(read_text)
+library(textdata)
+library(janeaustenr)
+library(dplyr)
+library(stringr)
 library(readtext)
+library(syuzhet)
+library(ngram)
 
 # Create corpus
 # Negative deceptive 
-corpus_d <- Corpus(DirSource("./deceptive/allfortm_d"), readerControl = list(language="lat")) #specifies the exact folder where my text file(s) is for analysis with tm.
+corpus_d <- Corpus(DirSource("./deceptive/allfortm_d"), readerControl = list(language="lat"))
 # Negative truthful 
 corpus_t <- Corpus(DirSource("./truthful/allfortm_t"), readerControl = list(language="lat"))
 
@@ -23,6 +30,7 @@ list_of_files_d <- list.files(path = "./deceptive/allfortm_d", recursive = TRUE,
                               pattern = "*.txt", 
                               full.names = TRUE)
 txt_d <- readtext(paste0(list_of_files_d))
+
 list_of_files_t <- list.files(path = "./truthful/allfortm_t", recursive = TRUE,
                               pattern = "*.txt", 
                               full.names = TRUE)
@@ -30,7 +38,7 @@ txt_t <- readtext(paste0(list_of_files_t))
 
 # complete text
 txt_c <- bind_rows(txt_t, txt_d)
-labels <- c(rep("truthfull",320), rep("deceptive",320))
+labels <- c(rep("truthful",320), rep("deceptive",320))
 
 # Complete text with labels [640x3]
 txt_c <- txt_c %>%
@@ -39,7 +47,7 @@ txt_c <- txt_c %>%
 stopwords <- tm::stopwords(kind = "en")
 
 # Prepare for word_cloud (no further preprocessing: needs to remove stopwords)
-dfm_corpus_t <- txt_c[txt_c$labels == "truthfull",] %>%
+dfm_corpus_t <- txt_c[txt_c$labels == "truthful",] %>%
   corpus(text_field = "text") %>%
   tokens(remove_numbers = FALSE, remove_punct = TRUE, remove_symbols = TRUE, remove_separators = TRUE, split_hyphens	
          = TRUE, remove_url = TRUE) %>% 
@@ -121,6 +129,29 @@ freq_by_rank %>%
   coord_flip()
 
 
+
+
+# Wordcloud: All docs
+word_matrix <- as.matrix(TermDocumentMatrix(corpus))
+words <- sort(rowSums(word_matrix),decreasing=TRUE) 
+word_df <- data.frame(word = names(words),freq=words)
+wordcloud(words = word_df$word, freq = word_df$freq, min.freq = 100, max.words=200, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"))
+
+# Wordcloud: Deceptive docs
+word_matrix_d <- as.matrix(TermDocumentMatrix(corpus_d))
+words_d <- sort(rowSums(word_matrix_d),decreasing=TRUE) 
+word_df_d <- data.frame(word = names(words_d),freq=words_d)
+wordcloud(words = word_df_d$word, freq = word_df_d$freq, min.freq = 1, max.words=200, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"))
+
+# Wordcloud: Truthful docs
+word_matrix_t <- as.matrix(TermDocumentMatrix(corpus_t))
+words_t <- sort(rowSums(word_matrix_t),decreasing=TRUE) 
+word_df_t <- data.frame(word = names(words_t),freq=words_t)
+wordcloud(words = word_df_t$word, freq = word_df_t$freq, min.freq = 1, max.words=200, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"))
+
+set.seed(1234) # for reproducibility 
+wordcloud(words = word_df$word, freq = word_df$freq, min.freq = 1, max.words=200, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"))
+
 # Process
 corpus <- tm_map(txt_all, removeNumbers)
 corpus <- tm_map(corpus, removePunctuation)
@@ -130,7 +161,7 @@ corpus <- tm_map(corpus, removeWords, stopwords("english"))
 corpus <- tm_map(corpus, stemDocument)
 
 dtm <- DocumentTermMatrix(corpus)
-sparse <- removeSparseTerms(corpus, 0.995)
+sparse <- removeSparseTerms(dtm, 0.995)
 freq <- DocumentTermMatrix(corpus)
 
 
@@ -146,6 +177,7 @@ for (i in row.names(tSparse)) {
   }
 }
 
+
 # Determine baseline accuracy (0.50 / 50%)
 prop.table(table(tSparse$class))
 
@@ -157,6 +189,72 @@ RF_model = randomForest(class ~ ., data=trainSparse)
 
 
 # # Process deceptive reviews
+
+docs <- Corpus(DirSource("./all"), readerControl = list(language="lat"))
+docs <- tm_map(docs, removeNumbers)
+docs <- tm_map(docs, removePunctuation)
+docs <- tm_map(docs , stripWhitespace)
+docs <- tm_map(docs, tolower)
+docs <- tm_map(docs, removeWords, stopwords("english"))
+docs <- tm_map(docs, stemDocument)
+
+dtm <- TermDocumentMatrix(docs)
+m <- as.matrix(dtm)
+v <- sort(rowSums(m), decreasing=TRUE)
+d <- data.frame(words = names(v), freq=v)
+
+# Clean
+cleaned_text <- txt_c
+cleaned_text$text <- tolower(cleaned_text$text)# Remove mentions, urls, emojis, numbers, punctuations, etc.
+cleaned_text$text <- gsub("@\\w+", "", cleaned_text$text)
+cleaned_text$text <- gsub("https?://.+", "", cleaned_text$text)
+cleaned_text$text <- gsub("\\d+\\w*\\d*", "", cleaned_text$text)
+cleaned_text$text <- gsub("#\\w+", "", cleaned_text$text)
+cleaned_text$text <- gsub("[^\x01-\x7F]", "", cleaned_text$text)
+cleaned_text$text <- gsub("[[:punct:]]", " ", cleaned_text$text)
+cleaned_text$text <- gsub("\n", " ", cleaned_text$text)
+cleaned_text$text <- gsub("^\\s+", "", cleaned_text$text)
+cleaned_text$text <- gsub("\\s+$", "", cleaned_text$text)
+cleaned_text$text <- gsub("[ |\t]+", " ", cleaned_text$text)
+
+# Sentiment Analysis
+sent_d <- get_nrc_sentiment(cleaned_text$text)
+sent_td <- data.frame(t(sent_d))
+sent_td_new <- data.frame(rowSums(sent_td[2:640]))
+
+names(sent_td_new)[1] <- "count"
+sent_td_new <- cbind("sentiment" = rownames(sent_td_new), sent_td_new)
+rownames(sent_td_new) <- NULL
+sent_td_new2<-sent_td_new[1:10,]
+
+qplot(df_trigrams$ngrams, data=df_trigrams, weight=df_trigrams$prop, geom="bar")+ggtitle("Overall review sentiments")
+
+# N-grams
+  # Bigram
+ng_bi <- ngram(cleaned_text$text, 2)
+ng_bi
+bigrams <- get.phrasetable(ng_bi)
+df_bigrams <- as.data.frame(bigrams)
+
+par(mar=c(9,3,3,3))
+barplot(df_bigrams$freq[0:10], names.arg=df_bigrams$ngrams[0:10], las=2)
+
+
+  # Trigram
+ng_tri <- ngram(cleaned_text$text, 3)
+ng_tri
+trigrams <- get.phrasetable(ng_tri)
+df_trigrams <- as.data.frame(trigrams)
+
+par(mar=c(9,3,3,3))
+barplot(df_trigrams$freq[0:10], names.arg=df_trigrams$ngrams[0:10], las=2)
+
+
+
+
+
+# # Previous code
+# txt_d <- Corpus(DirSource("./deceptive/allfortm_d"), readerControl = list(language="lat"))
 # txt_d <- tm_map(txt_d, removeNumbers)
 # txt_d <- tm_map(txt_d, removePunctuation)
 # txt_d <- tm_map(txt_d , stripWhitespace)
@@ -165,9 +263,9 @@ RF_model = randomForest(class ~ ., data=trainSparse)
 # txt_d <- tm_map(txt_d, stemDocument)
 # 
 # txt_d_dtm <- DocumentTermMatrix(txt_d)
-# sparse_d <- removeSparseTerms(txt_d_dtm, 0.90)
+# dtm_t <- as.matrix(txt_d_dtm)
 # 
-# freq_d <- DocumentTermMatrix(txt_d)
+# sparse_d <- removeSparseTerms(txt_d_dtm, 0.90)
 # 
 # 
 # tSparse_d = as.data.frame(as.matrix(sparse_d))
@@ -175,6 +273,7 @@ RF_model = randomForest(class ~ ., data=trainSparse)
 # tSparse_d$class = 1
 # 
 # # Process truthful reviews
+# txt_t <- Corpus(DirSource("./truthful/allfortm_t"), readerControl = list(language="lat"))
 # txt_t <- tm_map(txt_t, removeNumbers)
 # txt_t <- tm_map(txt_t, removePunctuation)
 # txt_t <- tm_map(txt_t , stripWhitespace)
@@ -191,6 +290,5 @@ RF_model = randomForest(class ~ ., data=trainSparse)
 # colnames(tSparse_t) = make.names(colnames(tSparse_t))
 # tSparse_t$class = 1
 # 
-# # Append data frames
-# 
+# # Append data frames# 
 # tSparse_all <- Append(tSparse_d, tSparse_t)
