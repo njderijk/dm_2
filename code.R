@@ -78,6 +78,11 @@ cleaned_data_tokens <- txt_c %>%
 cleaned_data_tokens_nosw <- cleaned_data_tokens %>%
   anti_join(get_stopwords())
 
+# Tf_idf 
+cleaned_data_tokens_nosw <- cleaned_data_tokens_nosw %>%
+  count(labels, word, sort = TRUE) %>%
+  bind_tf_idf(word, labels, n) 
+
 # Create dtm
 class_dtm_c <- cleaned_data_tokens_nosw %>%
   count(doc_id, word) %>%
@@ -231,7 +236,7 @@ qplot(df_trigrams$ngrams, data=df_trigrams, weight=df_trigrams$prop, geom="bar")
 
 # N-grams
   # Bigram
-ng_bi <- ngram(cleaned_text$text, 2)
+ng_bi <- ngram(txt_c[txt_c$labels == "deceptive",], 2)
 ng_bi
 bigrams <- get.phrasetable(ng_bi)
 df_bigrams <- as.data.frame(bigrams)
