@@ -16,6 +16,41 @@ library(readtext)
 library(syuzhet)
 library(ngram)
 
+train.mnb <- function (dtm,labels) 
+{
+  call <- match.call()
+  V <- ncol(dtm)
+  N <- nrow(dtm)
+  prior <- table(labels)/N
+  labelnames <- names(prior)
+  nclass <- length(prior)
+  cond.probs <- matrix(nrow=V,ncol=nclass)
+  dimnames(cond.probs)[[1]] <- dimnames(dtm)[[2]]
+  dimnames(cond.probs)[[2]] <- labelnames
+  index <- list(length=nclass)
+  for(j in 1:nclass){
+    index[[j]] <- c(1:N)[labels == labelnames[j]]
+  }
+  
+  for(i in 1:V){
+    for(j in 1:nclass){
+      cond.probs[i,j] <- (sum(dtm[index[[j]],i])+1)/(sum(dtm[index[[j]],])+V)
+    }
+  }
+  list(call=call,prior=prior,cond.probs=cond.probs)    
+}
+
+predict.mnb <-
+  function (model,dtm) 
+  {
+    classlabels <- dimnames(model$cond.probs)[[2]]
+    logprobs <- dtm %*% log(model$cond.probs)
+    N <- nrow(dtm)
+    nclass <- ncol(model$cond.probs)
+    logprobs <- logprobs+matrix(nrow=N,ncol=nclass,log(model$prior),byrow=T)
+    classlabels[max.col(logprobs)]
+  }
+
 # Create corpus
 # Negative deceptive 
 corpus_d <- Corpus(DirSource("./deceptive/allfortm_d"), readerControl = list(language="lat"))
@@ -85,8 +120,7 @@ cleaned_data_tokens_nosw <- cleaned_data_tokens_nosw %>%
 
 # Create dtm
 class_dtm_c <- cleaned_data_tokens_nosw %>%
-  count(doc_id, word) %>%
-  cast_dtm(document = doc_id, term = word, value = n)
+  cast_dtm(document = labels, term = word, value = n)
 
 class_dtm_c
 
@@ -256,6 +290,13 @@ barplot(df_trigrams$freq[0:10], names.arg=df_trigrams$ngrams[0:10], las=2)
 
 
 
+####### Training the models ##########
+# TODO: Load the test-data
+
+# Multinominal naive bayes:
+naive_bayes <- train.mnb(dtm = class_dtm_c,labels=c('deceptive','truthful')) 
+
+prediction <- predict.mnb(model=naive_bayes, dtm = test_dtm)
 
 
 # # Previous code
