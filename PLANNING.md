@@ -50,7 +50,19 @@ genuine review?
 
 
 23 oktober
-
+* Exploratory Data Analysis
+  * Teksten schrijven bij figuren en uitleggen wat het toevoegt (Yasmin & Noud)
+  * Stopwoorden uit figuren halen en aanpassen (Noud)
+  * Truthful en deceptive reviews apart voor o.a. N-grams (Noud)
+  * tf-idf splitsen in truthful en deceptive (Yasmin)
+  
+* Eerste analyses zonder feature selection
+  * Classifications en random forests (Noud)
+  * Multinomial naive bayes (Rose)
+  * Regularized logistic regression (Yasmin)
+  * Template opstellen voor accuracy, precision, en F1-score (Yasmin)
+  * Uitdenken cross-validation / feature selection (Iedereen)
+  * Uitdenken hoe je bigrams toevoegt en hoe je erop traint (Noud)
 
 
 28 oktober (of eerder)
