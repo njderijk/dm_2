@@ -384,6 +384,22 @@ naive_bayes <- train.mnb(dtm = class_dtm_c,labels=c('deceptive','truthful'))
 prediction <- predict.mnb(model=naive_bayes, dtm = test_dtm)
 
 
+# function for accuracy, precision, and F1-score
+confusionmatrix <- function(true, pred) {
+  conf_matrix <- table(true = true, pred = pred)
+  
+  TP <- conf_matrix[1,1]
+  FP <- conf_matrix[1,2]
+  FN <- conf_matrix[2,1]
+  TN <- conf_matrix[2,2]
+  
+  accuracy <- (TP + TN) / (TP + TN + FP + FN)
+  
+  precision <- (TP) / (TP + FP)
+  
+  F1 <- (2 * TP) / (2 * TP + FP + FN)
+}
+
 # Classification Tree
 train_data <- clean_df
 classification_tree = tree(formula = labels ~ text, data = train_data)
