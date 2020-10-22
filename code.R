@@ -15,6 +15,8 @@ library(stringr)
 library(readtext)
 library(syuzhet)
 library(ngram)
+library(caret)
+library(tree)
 
 train.mnb <- function (dtm,labels) 
 {
@@ -243,20 +245,24 @@ v <- sort(rowSums(m), decreasing=TRUE)
 d <- data.frame(words = names(v), freq=v)
 
 # Clean
-cleaned_text <- txt_c
-cleaned_text$text <- tolower(cleaned_text$text)# Remove mentions, urls, emojis, numbers, punctuations, etc.
-cleaned_text$text <- gsub("@\\w+", "", cleaned_text$text)
-cleaned_text$text <- gsub("https?://.+", "", cleaned_text$text)
-cleaned_text$text <- gsub("\\d+\\w*\\d*", "", cleaned_text$text)
-cleaned_text$text <- gsub("#\\w+", "", cleaned_text$text)
-cleaned_text$text <- gsub("[^\x01-\x7F]", "", cleaned_text$text)
-cleaned_text$text <- gsub("[[:punct:]]", " ", cleaned_text$text)
-cleaned_text$text <- gsub("\n", " ", cleaned_text$text)
-cleaned_text$text <- gsub("^\\s+", "", cleaned_text$text)
-cleaned_text$text <- gsub("\\s+$", "", cleaned_text$text)
-cleaned_text$text <- gsub("[ |\t]+", " ", cleaned_text$text)
+clean_text <- corpus
+clean_text <- tm_map(clean_text, removeNumbers)
+clean_text <- tm_map(clean_text, removePunctuation)
+clean_text <- tm_map(clean_text , stripWhitespace)
+clean_text <- tm_map(clean_text, tolower)
+clean_text <- tm_map(clean_text, removeWords, stopwords("english"))
+clean_text <- tm_map(clean_text, stemDocument)
 
-# Sentiment Analysis
+clean_df <- data.frame(text=sapply(clean_text, identity), stringsAsFactors=F)
+
+labels <- c(rep("truthful",320), rep("deceptive",320))
+
+# Complete text with labels [640x3]
+clean_df <- clean_df %>%
+  add_column(labels = factor(labels)) 
+
+
+# Sentiment Analysis for all reviews
 sent_d <- get_nrc_sentiment(cleaned_text$text)
 sent_td <- data.frame(t(sent_d))
 sent_td_new <- data.frame(rowSums(sent_td[2:640]))
@@ -268,26 +274,72 @@ sent_td_new2<-sent_td_new[1:10,]
 
 qplot(df_trigrams$ngrams, data=df_trigrams, weight=df_trigrams$prop, geom="bar")+ggtitle("Overall review sentiments")
 
+# Sentiment Analysis for deceptive reviews
+clean_deceptive <- cleaned_text[321:640,]
+sent_d <- get_nrc_sentiment(clean_deceptive$text)
+sent_dd <- data.frame(t(sent_d))
+sent_dd_new <- data.frame(rowSums(sent_dd[2:320]))
+
+names(sent_dd_new)[1] <- "count"
+sent_dd_new <- cbind("sentiment" = rownames(sent_dd_new), sent_dd_new)
+rownames(sent_dd_new) <- NULL
+sent_dd_new2<-sent_dd_new[1:10,]
+
+quickplot(sentiment, data=sent_dd_new2, weight=count, geom="bar", fill=sentiment, ylab="count")+ggtitle("Sentiments of deceptive reviews")
+
+
+# Sentiment Analysis for truthful reviews
+clean_truthful <- cleaned_text[1:320,]
+sent_t <- get_nrc_sentiment(clean_truthful$text)
+sent_td <- data.frame(t(sent_t))
+sent_td_new <- data.frame(rowSums(sent_td[2:320]))
+
+names(sent_td_new)[1] <- "count"
+sent_td_new <- cbind("sentiment" = rownames(sent_td_new), sent_td_new)
+rownames(sent_td_new) <- NULL
+sent_td_new2<-sent_td_new[1:10,]
+
+quickplot(sentiment, data=sent_td_new2, weight=count, geom="bar", fill=sentiment, ylab="count")+ggtitle("Sentiments of truthful reviews")
+
+
 # N-grams
-  # Bigram
-ng_bi <- ngram(txt_c[txt_c$labels == "deceptive",], 2)
-ng_bi
-bigrams <- get.phrasetable(ng_bi)
-df_bigrams <- as.data.frame(bigrams)
+
+  # Bigrams for truthful
+ng_bi_t <- ngram(clean_df[clean_df$labels == "truthful",]$text, 2)
+ng_bi_t
+bigrams_t <- get.phrasetable(ng_bi_t)
+df_bigrams_t <- as.data.frame(bigrams_t)
 
 par(mar=c(9,3,3,3))
-barplot(df_bigrams$freq[0:10], names.arg=df_bigrams$ngrams[0:10], las=2)
+barplot(df_bigrams_t$freq[0:10], names.arg=df_bigrams_t$ngrams[0:10], las=2)
+
+  # Bigrams for deceptive
+ng_bi_d <- ngram(clean_df[clean_df$labels == "deceptive",]$text, 2)
+ng_bi_d
+bigrams_d <- get.phrasetable(ng_bi_d)
+df_bigrams_d <- as.data.frame(bigrams_d)
+
+par(mar=c(12,4,4,4))
+barplot(df_bigrams_d$freq[0:10], names.arg=df_bigrams_d$ngrams[0:10], las=2)
 
 
-  # Trigram
-ng_tri <- ngram(cleaned_text$text, 3)
-ng_tri
-trigrams <- get.phrasetable(ng_tri)
-df_trigrams <- as.data.frame(trigrams)
+  # Trigram for truthful
+ng_tri_t <- ngram(clean_df[clean_df$labels == "truthful",]$text, 3)
+ng_tri_t
+trigrams_t <- get.phrasetable(ng_tri_t)
+df_trigrams_t <- as.data.frame(trigrams_t)
 
-par(mar=c(9,3,3,3))
-barplot(df_trigrams$freq[0:10], names.arg=df_trigrams$ngrams[0:10], las=2)
+par(mar=c(12,4,4,4))
+barplot(df_trigrams_t$freq[0:10], names.arg=df_trigrams_t$ngrams[0:10], las=2)
 
+# Trigram for deceptive
+ng_tri_d <- ngram(clean_df[clean_df$labels == "deceptive",]$text, 3)
+ng_tri_d
+trigrams_d <- get.phrasetable(ng_tri_d)
+df_trigrams_d <- as.data.frame(trigrams_d)
+
+par(mar=c(12,4,4,4))
+barplot(df_trigrams_d$freq[0:10], names.arg=df_trigrams_d$ngrams[0:10], las=2)
 
 
 ####### Training the models ##########
@@ -297,6 +349,18 @@ barplot(df_trigrams$freq[0:10], names.arg=df_trigrams$ngrams[0:10], las=2)
 naive_bayes <- train.mnb(dtm = class_dtm_c,labels=c('deceptive','truthful')) 
 
 prediction <- predict.mnb(model=naive_bayes, dtm = test_dtm)
+
+
+# Classification Tree
+train_data <- clean_df
+classification_tree = tree(formula = labels ~ text, data = train_data)
+summary(classification_tree)
+
+# Random Forest
+train_data <- clean_df
+set.seed(1234)
+random_forest <- randomForest(formula = labels ~ ., data = clean_df)
+print(random_forest)
 
 
 # # Previous code
