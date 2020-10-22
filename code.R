@@ -116,9 +116,24 @@ cleaned_data_tokens_nosw <- cleaned_data_tokens %>%
   anti_join(get_stopwords())
 
 # Tf_idf 
-cleaned_data_tokens_nosw <- cleaned_data_tokens_nosw %>%
-  count(labels, word, sort = TRUE) %>%
-  bind_tf_idf(word, labels, n) 
+cleaned_data_tokens_nosw_t <- cleaned_data_tokens_nosw[labels == "truthful",]
+cleaned_data_tokens_nosw_d <- cleaned_data_tokens_nosw[labels == "deceptive",]
+
+tf_idf_t <- cleaned_data_tokens_nosw_t %>%
+  count(doc_id, word, sort = TRUE) %>%
+  bind_tf_idf(word, doc_id, n)
+
+tf_idf_d <- cleaned_data_tokens_nosw_d %>%
+  count(doc_id, word, sort = TRUE) %>%
+  bind_tf_idf(word, doc_id, n)
+
+tf_idf_t %>%
+  top_n(50, tf_idf) %>%
+  ggplot(aes(x = tf_idf, y = word)) + geom_col()
+
+tf_idf_d %>%
+  top_n(50, tf_idf) %>%
+  ggplot(aes(x = tf_idf, y = word)) + geom_col()
 
 # Create dtm
 class_dtm_c <- cleaned_data_tokens_nosw %>%
@@ -341,6 +356,24 @@ df_trigrams_d <- as.data.frame(trigrams_d)
 par(mar=c(12,4,4,4))
 barplot(df_trigrams_d$freq[0:10], names.arg=df_trigrams_d$ngrams[0:10], las=2)
 
+# word counts per document
+word_counts_t <- txt_t
+for (i in 1:nrow(txt_t)){
+  word_counts_t[i, 'wordcount'] <- wordcount(txt_t$text[i], sep = " ", count.function = sum)
+}
+word_counts_t <- word_counts_t[c('doc_id', 'wordcount')]
+
+word_counts_d <- txt_d
+for (i in 1:nrow(txt_d)){
+  word_counts_d[i, 'wordcount'] <- wordcount(txt_d$text[i], sep = " ", count.function = sum)
+}
+word_counts_d <- word_counts_d[c('doc_id', 'wordcount')]
+
+summary(word_counts_t)
+summary(word_counts_d)
+
+ggplot(data = word_counts_t, aes(wordcount)) + geom_histogram(color='darkblue', fill='lightblue')
+ggplot(data = word_counts_d, aes(wordcount)) + geom_histogram(color='darkblue', fill='lightblue')
 
 ####### Training the models ##########
 # TODO: Load the test-data
