@@ -129,11 +129,11 @@ tf_idf_d <- cleaned_data_tokens_nosw_d %>%
   bind_tf_idf(word, doc_id, n)
 
 tf_idf_t %>%
-  top_n(50, tf_idf) %>%
+  top_n(20, tf_idf) %>%
   ggplot(aes(x = tf_idf, y = word)) + geom_col()
 
 tf_idf_d %>%
-  top_n(50, tf_idf) %>%
+  top_n(20, tf_idf) %>%
   ggplot(aes(x = tf_idf, y = word)) + geom_col()
 
 # Create dtm
@@ -388,7 +388,35 @@ ggplot(data = word_counts_t, aes(wordcount)) + geom_histogram(color='darkblue', 
 ggplot(data = word_counts_d, aes(wordcount)) + geom_histogram(color='darkblue', fill='lightblue')
 
 ####### Training the models ##########
-# TODO: Load the test-data
+
+# load test data
+list_of_test_files_t <- list.files(path = "./truthful/fold5",
+                                   pattern = "*.txt", full.names = TRUE)
+list_of_test_files_d <- list.files(path = "./deceptive/fold5",
+                                   pattern = "*.txt", full.names = TRUE)
+
+txt_t_test <- readtext(paste0(list_of_test_files_t))
+txt_d_test <- readtext(paste0(list_of_test_files_d))
+txt_test <- bind_rows(txt_t_test, txt_d_test)
+
+test_labels <- c(rep("truthful", 80), rep("deceptive", 80))
+
+txt_test <- txt_test %>%
+  add_column(labels = factor(test_labels))
+
+# process test data
+corpus_test <- VCorpus(VectorSource(txt_test$text))
+
+corpus_test %>%
+  tm_map(removeNumbers) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(stripWhitespace) %>%
+  tm_map(tolower) %>%
+  tm_map(removeWords, stopwords("english")) %>%
+  tm_map(stemDocument)
+
+tdm_test <- TermDocumentMatrix(corpus_test)
+word_matrix_test <- as.matrix(tdm_test)
 
 # Multinominal naive bayes:
 naive_bayes <- train.mnb(dtm = class_dtm_c,labels=c('deceptive','truthful')) 
