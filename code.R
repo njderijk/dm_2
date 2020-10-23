@@ -17,6 +17,7 @@ library(syuzhet)
 library(ngram)
 library(caret)
 library(tree)
+library(glmnet)
 
 train.mnb <- function (dtm,labels) 
 {
@@ -394,6 +395,31 @@ naive_bayes <- train.mnb(dtm = class_dtm_c,labels=c('deceptive','truthful'))
 
 prediction <- predict.mnb(model=naive_bayes, dtm = test_dtm)
 
+# Regularized logistic regression:
+# x: input matrix of dimension nr. obs. * nr. vars. (each row one observation)
+# y: response variable
+# (https://glmnet.stanford.edu/articles/glmnet.html#logistic-regression)
+rlr <- glmnet(x = as.matrix(sparse), y = c(rep(TRUE, 320), rep(FALSE, 320)), family = "binomial")
+plot(rlr)
+cvrlr <- cv.glmnet(x = as.matrix(sparse), y = c(rep(TRUE, 320), rep(FALSE, 320)), family = "binomial", type.measure = "class")
+plot(cvrlr)
+predict(cvrlr, newx = as.matrix(sparse))
+
+# function for accuracy, precision, and F1-score
+confusionmatrix <- function(true, pred) {
+  conf_matrix <- table(true = true, pred = pred)
+  
+  TP <- conf_matrix[1,1]
+  FP <- conf_matrix[1,2]
+  FN <- conf_matrix[2,1]
+  TN <- conf_matrix[2,2]
+  
+  accuracy <- (TP + TN) / (TP + TN + FP + FN)
+  
+  precision <- (TP) / (TP + FP)
+  
+  F1 <- (2 * TP) / (2 * TP + FP + FN)
+}
 
 # Classification Tree
 train_data <- clean_df
