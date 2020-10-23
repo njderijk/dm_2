@@ -221,7 +221,7 @@ wordcloud(words = word_df_t$word, freq = word_df_t$freq, min.freq = 1, max.words
 
 
 # Process
-corpus <- tm_map(txt_all, removeNumbers)
+corpus <- tm_map(txt_c, removeNumbers)
 corpus <- tm_map(corpus, removePunctuation)
 corpus <- tm_map(corpus , stripWhitespace)
 corpus <- tm_map(corpus, tolower)
@@ -399,11 +399,30 @@ prediction <- predict.mnb(model=naive_bayes, dtm = test_dtm)
 # x: input matrix of dimension nr. obs. * nr. vars. (each row one observation)
 # y: response variable
 # (https://glmnet.stanford.edu/articles/glmnet.html#logistic-regression)
-rlr <- glmnet(x = as.matrix(sparse), y = c(rep(TRUE, 320), rep(FALSE, 320)), family = "binomial")
+set.seed(421)
+rlr <- glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), family = "binomial", nlambda=100)
 plot(rlr)
-cvrlr <- cv.glmnet(x = as.matrix(sparse), y = c(rep(TRUE, 320), rep(FALSE, 320)), family = "binomial", type.measure = "class")
+predict(rlr, newx=as.matrix(sparse))
+cvrlr <- cv.glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), family = "binomial", type.measure = "class")
 plot(cvrlr)
-predict(cvrlr, newx = as.matrix(sparse))
+predict(cvrlr, newx = as.matrix(sparse), type="response")
+
+cvrlr$lambda.min
+cvrlr$lambda.1se
+
+# Final model with lambda.min
+lasso.model <- glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), alpha = 1, family = "binomial",
+                      lambda = cvrlr$lambda.min)
+
+# Make prediction on test data
+# x.test <- model.matrix(y ~., as.matrix(sparse))
+probabilities <- predict(lasso.model, newx = as.matrix(sparse), type="response")
+predicted.classes <- ifelse(probabilities > 0.5, "truthful", "deceptive")
+
+# Model accuracy
+observed.classes <- test_data$labels
+mean(predicted.classes == observed.classes)
+
 
 # function for accuracy, precision, and F1-score
 confusionmatrix <- function(true, pred) {
