@@ -402,7 +402,8 @@ prediction <- predict.mnb(model=naive_bayes, dtm = test_dtm)
 set.seed(421)
 rlr <- glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), family = "binomial", nlambda=100)
 plot(rlr)
-predict(rlr, newx=as.matrix(sparse))
+predict(rlr, newx=as.matrix(sparse)) # use test-data here
+
 cvrlr <- cv.glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), family = "binomial", type.measure = "class")
 plot(cvrlr)
 predict(cvrlr, newx = as.matrix(sparse), type="response")
@@ -415,9 +416,8 @@ lasso.model <- glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 32
                       lambda = cvrlr$lambda.min)
 
 # Make prediction on test data
-# x.test <- model.matrix(y ~., as.matrix(sparse))
-probabilities <- predict(lasso.model, newx = as.matrix(sparse), type="response")
-predicted.classes <- ifelse(probabilities > 0.5, "truthful", "deceptive")
+probabilities <- predict(lasso.model, newx = as.matrix(sparse), type="response") # newx = test-data
+predicted.classes <- ifelse(probabilities > 0.5, "truthful", "deceptive") 
 
 # Model accuracy
 observed.classes <- test_data$labels
