@@ -185,8 +185,6 @@ freq_by_rank %>%
   coord_flip()
 
 
-
-
 # Wordcloud: All docs
 word_matrix <- as.matrix(TermDocumentMatrix(corpus))
 words <- sort(rowSums(word_matrix),decreasing=TRUE) 
@@ -194,19 +192,32 @@ word_df <- data.frame(word = names(words),freq=words)
 wordcloud(words = word_df$word, freq = word_df$freq, min.freq = 100, max.words=200, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"))
 
 # Wordcloud: Deceptive docs
-word_matrix_d <- as.matrix(TermDocumentMatrix(corpus_d))
+corpus_d <- tm_map(corpus_d, removeNumbers)
+corpus_d <- tm_map(corpus_d, removePunctuation)
+corpus_d <- tm_map(corpus_d , stripWhitespace)
+corpus_d <- tm_map(corpus_d, tolower)
+corpus_d <- tm_map(corpus_d, removeWords, stopwords("english"))
+corpus_d <- tm_map(corpus_d, stemDocument)
+dtm_d <- TermDocumentMatrix(corpus_d)
+word_matrix_d <- as.matrix(dtm_d)
 words_d <- sort(rowSums(word_matrix_d),decreasing=TRUE) 
 word_df_d <- data.frame(word = names(words_d),freq=words_d)
 wordcloud(words = word_df_d$word, freq = word_df_d$freq, min.freq = 1, max.words=200, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"))
 
+
 # Wordcloud: Truthful docs
-word_matrix_t <- as.matrix(TermDocumentMatrix(corpus_t))
+corpus_t <- tm_map(corpus_t, removeNumbers)
+corpus_t <- tm_map(corpus_t, removePunctuation)
+corpus_t <- tm_map(corpus_t , stripWhitespace)
+corpus_t <- tm_map(corpus_t, tolower)
+corpus_t <- tm_map(corpus_t, removeWords, stopwords("english"))
+corpus_t <- tm_map(corpus_t, stemDocument)
+dtm_t <- TermDocumentMatrix(corpus_t)
+word_matrix_t <- as.matrix(dtm_t)
 words_t <- sort(rowSums(word_matrix_t),decreasing=TRUE) 
 word_df_t <- data.frame(word = names(words_t),freq=words_t)
 wordcloud(words = word_df_t$word, freq = word_df_t$freq, min.freq = 1, max.words=200, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"))
 
-set.seed(1234) # for reproducibility 
-wordcloud(words = word_df$word, freq = word_df$freq, min.freq = 1, max.words=200, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"))
 
 # Process
 corpus <- tm_map(txt_all, removeNumbers)
@@ -244,7 +255,7 @@ RF_model = randomForest(class ~ ., data=trainSparse)
 # predictRF = predict(RF_model, newdata=testSparse)
 
 
-# # Process deceptive reviews
+# # Process all reviews
 
 docs <- Corpus(DirSource("./all"), readerControl = list(language="lat"))
 docs <- tm_map(docs, removeNumbers)
@@ -278,7 +289,7 @@ clean_df <- clean_df %>%
 
 
 # Sentiment Analysis for all reviews
-sent_d <- get_nrc_sentiment(cleaned_text$text)
+sent_d <- get_nrc_sentiment(clean_text$text)
 sent_td <- data.frame(t(sent_d))
 sent_td_new <- data.frame(rowSums(sent_td[2:640]))
 
@@ -290,7 +301,7 @@ sent_td_new2<-sent_td_new[1:10,]
 qplot(df_trigrams$ngrams, data=df_trigrams, weight=df_trigrams$prop, geom="bar")+ggtitle("Overall review sentiments")
 
 # Sentiment Analysis for deceptive reviews
-clean_deceptive <- cleaned_text[321:640,]
+clean_deceptive <- clean_text[321:640,]
 sent_d <- get_nrc_sentiment(clean_deceptive$text)
 sent_dd <- data.frame(t(sent_d))
 sent_dd_new <- data.frame(rowSums(sent_dd[2:320]))
@@ -304,7 +315,7 @@ quickplot(sentiment, data=sent_dd_new2, weight=count, geom="bar", fill=sentiment
 
 
 # Sentiment Analysis for truthful reviews
-clean_truthful <- cleaned_text[1:320,]
+clean_truthful <- clean_text[1:320,]
 sent_t <- get_nrc_sentiment(clean_truthful$text)
 sent_td <- data.frame(t(sent_t))
 sent_td_new <- data.frame(rowSums(sent_td[2:320]))
