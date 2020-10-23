@@ -66,4 +66,11 @@ genuine review?
 
 
 28 oktober (of eerder)
--> Inleveren, als het eerder kan graag want tentamen is een paar dagen erna.
+ * Vragen in Teams over cross-validation van multinomial naive bayes
+ 
+ * Exploratory Data Analysis
+  * tf-idf top 10 i.p.v. top 50 (Yasmin)
+  
+ * Test data inladen om op te predicten
+  
+ * Methoden
