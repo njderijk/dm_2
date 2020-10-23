@@ -74,3 +74,9 @@ genuine review?
  * Test data inladen om op te predicten
   
  * Methoden
+  * Voorspellen met bigrams met analyses/modellen (Rose)
+  * Doorgaan met analyses / modellen maken (Iedereen, zie hieronder)
+    * Regularized logistic regression (Rose)
+    * Multinomial naive bayes (Yasmin)
+    * Classifcation Tree (Noud)
+    * Random Forest (Noud)

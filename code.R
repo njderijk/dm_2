@@ -390,33 +390,20 @@ ggplot(data = word_counts_d, aes(wordcount)) + geom_histogram(color='darkblue', 
 ####### Training the models ##########
 
 # load test data
-list_of_test_files_t <- list.files(path = "./truthful/fold5",
-                                   pattern = "*.txt", full.names = TRUE)
-list_of_test_files_d <- list.files(path = "./deceptive/fold5",
-                                   pattern = "*.txt", full.names = TRUE)
 
-txt_t_test <- readtext(paste0(list_of_test_files_t))
-txt_d_test <- readtext(paste0(list_of_test_files_d))
-txt_test <- bind_rows(txt_t_test, txt_d_test)
+corpus_test <- Corpus(DirSource("./test"), readerControl = list(language="lat"))
 
-test_labels <- c(rep("truthful", 80), rep("deceptive", 80))
+corpus_test <- tm_map(corpus_test, removeNumbers)
+corpus_test <- tm_map(corpus_test, removePunctuation)
+corpus_test <- tm_map(corpus_test , stripWhitespace)
+corpus_test <- tm_map(corpus_test, tolower)
+corpus_test <- tm_map(corpus_test, removeWords, stopwords("english"))
+corpus_test <- tm_map(corpus_test, stemDocument)
 
-txt_test <- txt_test %>%
-  add_column(labels = factor(test_labels))
+dtm_test <- DocumentTermMatrix(corpus_test)
+sparse_test <- as.matrix(dtm_test)
 
-# process test data
-corpus_test <- VCorpus(VectorSource(txt_test$text))
-
-corpus_test %>%
-  tm_map(removeNumbers) %>%
-  tm_map(removePunctuation) %>%
-  tm_map(stripWhitespace) %>%
-  tm_map(tolower) %>%
-  tm_map(removeWords, stopwords("english")) %>%
-  tm_map(stemDocument)
-
-tdm_test <- TermDocumentMatrix(corpus_test)
-word_matrix_test <- as.matrix(tdm_test)
+sparse_train <- as.matrix(sparse)
 
 # Multinominal naive bayes:
 naive_bayes <- train.mnb(dtm = class_dtm_c,labels=c('deceptive','truthful')) 
@@ -430,11 +417,11 @@ prediction <- predict.mnb(model=naive_bayes, dtm = test_dtm)
 set.seed(421)
 rlr <- glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), family = "binomial", nlambda=100)
 plot(rlr)
-predict(rlr, newx=as.matrix(sparse)) # use test-data here
+predict(rlr, newx=sparse_train, type="response")
 
 cvrlr <- cv.glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), family = "binomial", type.measure = "class")
 plot(cvrlr)
-predict(cvrlr, newx = as.matrix(sparse), type="response")
+predict(cvrlr, newx = as.matrix(dtm_test), type="response")
 
 cvrlr$lambda.min
 cvrlr$lambda.1se
@@ -444,7 +431,7 @@ lasso.model <- glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 32
                       lambda = cvrlr$lambda.min)
 
 # Make prediction on test data
-probabilities <- predict(lasso.model, newx = as.matrix(sparse), type="response") # newx = test-data
+probabilities <- predict(lasso.model, newx = sparse_test, type="response") # newx = test-data
 predicted.classes <- ifelse(probabilities > 0.5, "truthful", "deceptive") 
 
 # Model accuracy
