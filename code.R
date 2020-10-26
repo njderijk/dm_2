@@ -74,6 +74,12 @@ list_of_files_t <- list.files(path = "./truthful/allfortm_t", recursive = TRUE,
                               full.names = TRUE)
 txt_t <- readtext(paste0(list_of_files_t))
 
+list_of_files_test <- list.files(path = "./test", recursive = TRUE,
+                              pattern = "*.txt", 
+                              full.names = TRUE)
+txt_test <- readtext(paste0(list_of_files_test))
+labels_test <- c(rep("deceptive", 80), rep("truthful",80))
+
 # complete text
 txt_c <- bind_rows(txt_t, txt_d)
 labels <- c(rep("truthful",320), rep("deceptive",320))
@@ -81,6 +87,10 @@ labels <- c(rep("truthful",320), rep("deceptive",320))
 # Complete text with labels [640x3]
 txt_c <- txt_c %>%
   add_column(labels = factor(labels)) 
+
+# Complete test set with labels 
+txt_test <- txt_test %>%
+  add_column(labels = factor(labels_test))
 
 stopwords <- tm::stopwords(kind = "en")
 
@@ -233,7 +243,6 @@ sparse <- removeSparseTerms(dtm, 0.995)
 freq <- DocumentTermMatrix(corpus)
 
 
-
 tSparse = as.data.frame(as.matrix(sparse))
 colnames(tSparse) = make.names(colnames(sparse))
 for (i in row.names(tSparse)) {
@@ -368,6 +377,198 @@ df_trigrams_d <- as.data.frame(trigrams_d)
 par(mar=c(12,4,4,4))
 barplot(df_trigrams_d$freq[0:10], names.arg=df_trigrams_d$ngrams[0:10], las=2)
 
+
+### 
+
+# create bigrams
+# n_gram_list<- txt_c %>%
+#   select(c("text", "labels", "doc_id")) %>%
+#   unnest_tokens(output = bigram, input = text, token = "ngrams", n =2) %>%
+#   separate(bigram, c("word1", "word2"), sep = " ") %>%
+#   filter(
+#     !word1 %in% stop_words$word, # remove stopwords from both words in bi-gram
+#     !word2 %in% stop_words$word,
+#     !str_detect(word1, pattern = "[[:digit:]]"), # removes any words with numeric digits
+#     !str_detect(word2, pattern = "[[:digit:]]"),
+#     !str_detect(word1, pattern = "[[:punct:]]"), # removes any remaining punctuations
+#     !str_detect(word2, pattern = "[[:punct:]]"),
+#     !str_detect(word1, pattern = "(.)\\1{2,}"), # removes any words with 3 or more repeated letters
+#     !str_detect(word2, pattern = "(.)\\1{2,}"),
+#     !str_detect(word1, pattern = "\\b(.)\\b"), # removes any remaining single letter words
+#     !str_detect(word1, pattern = "\\b(.)\\b")
+#   ) %>%
+#   unite("bigram", c(word1, word2), sep = " ") %>%
+#   count(bigram) %>%
+#   filter(n >= 10) %>% # filter for bi-grams used 10 or more times
+#   pull(bigram)
+
+n_gram_list <- txt_c %>%
+  select(c("text", "labels", "doc_id")) %>%
+  unnest_tokens(output = bigram, input = text, token = "ngrams", n =2) %>%
+  separate(bigram, c("word1", "word2"), sep = " ") %>%
+  filter(
+    !word1 %in% stop_words$word, # remove stopwords from both words in bi-gram
+    !word2 %in% stop_words$word,
+    !str_detect(word1, pattern = "[[:digit:]]"), # removes any words with numeric digits
+    !str_detect(word2, pattern = "[[:digit:]]"),
+    !str_detect(word1, pattern = "[[:punct:]]"), # removes any remaining punctuations
+    !str_detect(word2, pattern = "[[:punct:]]"),
+    !str_detect(word1, pattern = "(.)\\1{2,}"), # removes any words with 3 or more repeated letters
+    !str_detect(word2, pattern = "(.)\\1{2,}"),
+    !str_detect(word1, pattern = "\\b(.)\\b"), # removes any remaining single letter words
+    !str_detect(word1, pattern = "\\b(.)\\b")
+  ) %>%
+  unite("bigram", c(word1, word2), sep = " ") %>%
+  count(bigram) %>%
+  filter(n >= 5) %>% # filter for bi-grams used 10 or more times
+  pull(bigram)
+
+# sneak peek at our bi-gram list
+head(n_gram_list)
+length(n_gram_list)
+# Adding 151 new features 
+
+# create new bi-gram features
+n_gram_list_2 <- txt_c %>%
+  select(c("text", "labels", "doc_id")) %>% 
+  unnest_tokens(word, input=text, token = "ngrams", n = 2) %>%
+  filter(word %in% n_gram_list) # filter for only bi-grams in the ngram_list
+  # count(doc_id, bigram) %>% # count bi-gram useage by doc ID
+  # spread(bigram, n) %>% # convert to wide format
+  # map_df(replace_na, 0) # replace NAs with 0
+
+# create ngram - 1 features
+n_gram_list_1 <- txt_c %>%
+  select(c("text", "labels", "doc_id")) %>% 
+  unnest_tokens(output = word, input = text)
+
+n_gram_list_1_no_sw <- n_gram_list_1 %>%
+  anti_join(get_stopwords()) %>%
+  filter(
+    !str_detect(word, pattern = "[[:digit:]]"), # removes any words with numeric digits
+    !str_detect(word, pattern = "[[:punct:]]"), # removes any remaining punctuations
+    !str_detect(word, pattern = "(.)\\1{2,}"), # removes any words with 3 or more repeated letters
+    !str_detect(word, pattern = "\\b(.)\\b"), # removes any remaining single letter words
+  ) 
+
+# Complete N-gram list with the bigrams and ngrams
+full_n_gram_list <- rbind(n_gram_list_1_no_sw, n_gram_list_2) 
+
+df_full <- full_n_gram_list %>% 
+  count(doc_id, word) %>% # count bi-gram useage by doc ID
+  spread(word, n) %>% # convert to wide format
+  map_df(replace_na, 0) %>%
+  add_column(labels = c(rep(0,320), rep(1,320)))
+
+# DECEPTIVE == 0, TRUTHFULL == 1
+
+
+# Create dtm: 320 deceptive, 320 truthful 
+class_dtm_full_n_gram_list <- full_n_gram_list %>%
+  count(doc_id, word) %>%
+  cast_dtm(document = doc_id, term = word, value = n)
+
+# Reducing model complexity by removing sparse terms from the model: tokens that do not appear across many documents 
+class_dtm_full_2<- removeSparseTerms(class_dtm_full_n_gram_list, sparse =.99) #97 terms 562
+
+
+### FOR THE TEST SET 
+# create new bi-gram features
+test_set_bigram_features <- txt_test %>%
+  select(c("text", "labels", "doc_id")) %>% 
+  unnest_tokens(word, input=text, token = "ngrams", n = 2)
+
+# create ngram - 1 features
+test_set_1 <- txt_test %>%
+  select(c("text", "labels", "doc_id")) %>% 
+  unnest_tokens(output = word, input = text)
+
+# Complete N-gram list with the bigrams and ngrams
+full_test_set <- rbind(test_set_1, test_set_bigram_features) 
+
+# Create dtm: 80 deceptive, 80 truthful 
+test_dtm <- full_test_set %>%
+  count(doc_id, word) %>%
+  cast_dtm(document = doc_id, term = word, value = n)
+
+test_dtm
+
+###### COMBINE TRAINING AND TEST 
+### 640 (truthful, deceptive) - 180 test (deceptive, truthful)
+txt_full <- rbind(txt_c,txt_test)
+
+n_gram_list_full_2 <- txt_full %>%
+  select(c("text", "labels", "doc_id")) %>%
+  unnest_tokens(output = bigram, input = text, token = "ngrams", n =2) %>%
+  separate(bigram, c("word1", "word2"), sep = " ") %>%
+  filter(
+    !str_detect(word1, pattern = "[[:digit:]]"), # removes any words with numeric digits
+    !str_detect(word2, pattern = "[[:digit:]]"),
+    !str_detect(word1, pattern = "[[:punct:]]"), # removes any remaining punctuations
+    !str_detect(word2, pattern = "[[:punct:]]"),
+    !str_detect(word1, pattern = "(.)\\1{2,}"), # removes any words with 3 or more repeated letters
+    !str_detect(word2, pattern = "(.)\\1{2,}"),
+    !str_detect(word1, pattern = "\\b(.)\\b"), # removes any remaining single letter words
+    !str_detect(word1, pattern = "\\b(.)\\b")
+  ) %>%
+  unite("bigram", c(word1, word2), sep = " ") %>%
+  count(bigram) %>%
+  pull(bigram)
+
+# sneak peek at our bi-gram list
+head(n_gram_list_full_2)
+length(n_gram_list_full_2)
+
+# Adding 51596 new features 
+n_gram_list_full_2b <- txt_full %>%
+  select(c("text", "labels", "doc_id")) %>% 
+  unnest_tokens(word, input=text, token = "ngrams", n = 2) %>%
+  filter(word %in% n_gram_list_full_2) # filter for only bi-grams in the ngram_list
+# count(doc_id, bigram) %>% # count bi-gram useage by doc ID
+# spread(bigram, n) %>% # convert to wide format
+# map_df(replace_na, 0) # replace NAs with 0
+
+# create ngram - 1 features
+n_gram_list_full_1 <- txt_full %>%
+  select(c("text", "labels", "doc_id")) %>% 
+  unnest_tokens(output = word, input = text) %>%
+  filter(
+    !str_detect(word, pattern = "[[:digit:]]"), # removes any words with numeric digits
+    !str_detect(word, pattern = "[[:punct:]]"), # removes any remaining punctuations
+    !str_detect(word, pattern = "(.)\\1{2,}"), # removes any words with 3 or more repeated letters
+    !str_detect(word, pattern = "\\b(.)\\b"), # removes any remaining single letter words
+  ) 
+
+# Complete N-gram list with the bigrams and ngrams
+full_set <- rbind(n_gram_list_full_1, n_gram_list_full_2b)
+
+dtm_full <- full_set %>%
+    count(doc_id, word) %>%
+    cast_dtm(document = doc_id, term = word, value = n)
+  
+
+# dtm_full_test <- full_set %>%
+#   filter(doc_id %in% txt_test$doc_id) %>%
+#   count(doc_id, word) %>%
+#   cast_dtm(document = doc_id, term = word, value = n)
+
+# df_full <- full_set %>% 
+#   count(doc_id, word) %>% # count bi-gram useage by doc ID
+#   spread(word, n) %>% # convert to wide format
+#   map_df(replace_na, 0) 
+
+# df_full_training <- full_set %>%
+#   filter(!doc_id %in% txt_test$doc_id) %>%
+#   add_column(labels = c(rep(0,320), rep(1,320)))
+
+# dtm_full_training <-  full_set %>%
+#   filter(!doc_id %in% txt_test$doc_id) %>%
+#   count(doc_id, word) %>%
+#   cast_dtm(document = doc_id, term = word, value = n)
+
+dtm_full_training
+# DECEPTIVE == 0, TRUTHFULL == 1
+
 # word counts per document
 word_counts_t <- txt_t
 for (i in 1:nrow(txt_t)){
@@ -410,29 +611,47 @@ naive_bayes <- train.mnb(dtm = class_dtm_c,labels=c('deceptive','truthful'))
 
 prediction <- predict.mnb(model=naive_bayes, dtm = test_dtm)
 
-# Regularized logistic regression:
-# x: input matrix of dimension nr. obs. * nr. vars. (each row one observation)
-# y: response variable
-# (https://glmnet.stanford.edu/articles/glmnet.html#logistic-regression)
-set.seed(421)
-rlr <- glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), family = "binomial", nlambda=100)
-plot(rlr)
-predict(rlr, newx=sparse_train, type="response")
+### LOGISTIC REGRESSION
+dtm_full_tr <- df_full_training %>%
+  count(doc_id, word) %>%
+  cast_dtm(document = doc_id, term = word, value = n)
 
-cvrlr <- cv.glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), family = "binomial", type.measure = "class")
-plot(cvrlr)
-predict(cvrlr, newx = as.matrix(dtm_test), type="response")
+dtm_test <- dtm_full[dtm_full$dimnames$Docs %in% txt_test$doc_id,]
+dtm_training <- dtm_full[!dtm_full$dimnames$Docs %in% txt_test$doc_id,]
 
-cvrlr$lambda.min
-cvrlr$lambda.1se
+model <- glmnet(x = as.matrix(dtm_training),y = c(rep(0, 320), rep(1, 320)), family = "binomial")
 
-# Final model with lambda.min
-lasso.model <- glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), alpha = 1, family = "binomial",
-                      lambda = cvrlr$lambda.min)
+# rlr <- glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), family = "binomial", nlambda=100)
+test <- predict(model, newx = as.matrix(dtm_test), type = "response")
 
-# Make prediction on test data
-probabilities <- predict(lasso.model, newx = sparse_test, type="response") # newx = test-data
-predicted.classes <- ifelse(probabilities > 0.5, "truthful", "deceptive") 
+
+# # Regularized logistic regression:
+# # x: input matrix of dimension nr. obs. * nr. vars. (each row one observation)
+# # y: response variable
+# # (https://glmnet.stanford.edu/articles/glmnet.html#logistic-regression)
+# # set.seed(421)
+# rlr <- glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), family = "binomial", nlambda=100)
+# plot(rlr)
+# 
+# # predict(rlr, newx=sparse_train, type="response")
+# 
+# lrlr <- glmnet(x = as.matrix(class_dtm_full_2), y = c(rep("deceptive", 320), rep("truthfull", 320)), family = "binomial")
+# predict(lrlr, newx = as.matrix(test_dtm), type= "response")
+# 
+# cvrlr<- cv.glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), family = "binomial", type.measure = "class")
+# plot(cvrlr)
+# predict(cvrlr, newx = as.matrix(dtm_test), type="response")
+# 
+# cvrlr$lambda.min
+# cvrlr$lambda.1se
+# 
+# # Final model with lambda.min
+# lasso.model <- glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), alpha = 1, family = "binomial",
+#                       lambda = cvrlr$lambda.min)
+# 
+# # Make prediction on test data
+# probabilities <- predict(lasso.model, newx = sparse_test, type="response") # newx = test-data
+# predicted.classes <- ifelse(probabilities > 0.5, "truthful", "deceptive") 
 
 # Model accuracy
 observed.classes <- test_data$labels
@@ -506,3 +725,18 @@ print(random_forest)
 # 
 # # Append data frames# 
 # tSparse_all <- Append(tSparse_d, tSparse_t)
+# 
+# ###
+# # n_gram_list_2 = 558 X 150 (Thus: 150 features)
+# # n_gram_list_1_no_sw = 640 x 6,525 (Thus: 6.525 features)
+# # full n_gram_list =  640 x 6,675:
+# full_n_gram <- left_join(n_gram_list_1_no_sw, n_gram_list_2, by = "doc_id") 
+# 
+# # add column into deceptive / truthful, drop the "doc_id"
+# full_n_gram_2 <- left_join(txt_c %>% select(c("labels","doc_id")),
+#                            full_n_gram , by = "doc_id") %>%
+#   select(c(-"doc_id"))
+# 
+# # So, now you have a full n-gram df: every row is either truthful or deceptive with their 
+# # own features, either one word, or bigrams
+# head(full_n_gram_2)
