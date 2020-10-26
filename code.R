@@ -19,6 +19,22 @@ library(caret)
 library(tree)
 library(glmnet)
 
+# function for accuracy, precision, and F1-score
+confusionmatrix <- function(true, pred) {
+  conf_matrix <- table(true = true, pred = pred)
+  
+  TP <- conf_matrix[1,1]
+  FP <- conf_matrix[1,2]
+  FN <- conf_matrix[2,1]
+  TN <- conf_matrix[2,2]
+  
+  accuracy <- (TP + TN) / (TP + TN + FP + FN)
+  
+  precision <- (TP) / (TP + FP)
+  
+  F1 <- (2 * TP) / (2 * TP + FP + FN)
+}
+
 train.mnb <- function (dtm,labels) 
 {
   call <- match.call()
@@ -378,7 +394,7 @@ par(mar=c(12,4,4,4))
 barplot(df_trigrams_d$freq[0:10], names.arg=df_trigrams_d$ngrams[0:10], las=2)
 
 
-### 
+### ############# 
 
 # create bigrams
 # n_gram_list<- txt_c %>%
@@ -468,6 +484,11 @@ class_dtm_full_n_gram_list <- full_n_gram_list %>%
   count(doc_id, word) %>%
   cast_dtm(document = doc_id, term = word, value = n)
 
+dtm_training_no_bigram <- n_gram_list_1_no_sw %>%
+  count(doc_id, word) %>%
+  cast_dtm(document = doc_id, term = word, value = n)
+
+
 # Reducing model complexity by removing sparse terms from the model: tokens that do not appear across many documents 
 class_dtm_full_2<- removeSparseTerms(class_dtm_full_n_gram_list, sparse =.99) #97 terms 562
 
@@ -502,6 +523,8 @@ n_gram_list_full_2 <- txt_full %>%
   unnest_tokens(output = bigram, input = text, token = "ngrams", n =2) %>%
   separate(bigram, c("word1", "word2"), sep = " ") %>%
   filter(
+    !word1 %in% stop_words$word,                 # remove stopwords from both words in bi-gram
+    !word2 %in% stop_words$word,
     !str_detect(word1, pattern = "[[:digit:]]"), # removes any words with numeric digits
     !str_detect(word2, pattern = "[[:digit:]]"),
     !str_detect(word1, pattern = "[[:punct:]]"), # removes any remaining punctuations
@@ -537,7 +560,8 @@ n_gram_list_full_1 <- txt_full %>%
     !str_detect(word, pattern = "[[:punct:]]"), # removes any remaining punctuations
     !str_detect(word, pattern = "(.)\\1{2,}"), # removes any words with 3 or more repeated letters
     !str_detect(word, pattern = "\\b(.)\\b"), # removes any remaining single letter words
-  ) 
+  ) %>%
+  anti_join(get_stopwords())
 
 # Complete N-gram list with the bigrams and ngrams
 full_set <- rbind(n_gram_list_full_1, n_gram_list_full_2b)
@@ -545,8 +569,11 @@ full_set <- rbind(n_gram_list_full_1, n_gram_list_full_2b)
 dtm_full <- full_set %>%
     count(doc_id, word) %>%
     cast_dtm(document = doc_id, term = word, value = n)
-  
 
+dtm_full_single_words <- n_gram_list_full_1 %>%
+  count(doc_id, word) %>%
+  cast_dtm(document = doc_id, term = word, value = n)
+  
 # dtm_full_test <- full_set %>%
 #   filter(doc_id %in% txt_test$doc_id) %>%
 #   count(doc_id, word) %>%
@@ -566,7 +593,7 @@ dtm_full <- full_set %>%
 #   count(doc_id, word) %>%
 #   cast_dtm(document = doc_id, term = word, value = n)
 
-dtm_full_training
+# dtm_full_training
 # DECEPTIVE == 0, TRUTHFULL == 1
 
 # word counts per document
@@ -616,63 +643,47 @@ dtm_full_tr <- df_full_training %>%
   count(doc_id, word) %>%
   cast_dtm(document = doc_id, term = word, value = n)
 
-dtm_test <- dtm_full[dtm_full$dimnames$Docs %in% txt_test$doc_id,]
-dtm_training <- dtm_full[!dtm_full$dimnames$Docs %in% txt_test$doc_id,]
+# # CREATE TEST SETS WITH BIGRAMS
+# dtm_test <- dtm_full[dtm_full$dimnames$Docs %in% txt_test$doc_id,]
+# dtm_training <- dtm_full[!dtm_full$dimnames$Docs %in% txt_test$doc_id,]
 
-model <- glmnet(x = as.matrix(dtm_training),y = c(rep(0, 320), rep(1, 320)), family = "binomial")
+# CREATE TEST SETS WITHOUT BIGRAMS
+dtm_test <- dtm_full_single_words[dtm_full_single_words$dimnames$Docs %in% txt_test$doc_id,]
+dtm_training <- dtm_full_single_words[!dtm_full_single_words$dimnames$Docs %in% txt_test$doc_id,]
 
-# rlr <- glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), family = "binomial", nlambda=100)
-test <- predict(model, newx = as.matrix(dtm_test), type = "response")
+# find hyper-parameters
+cv_model_lr <- cv.glmnet(x = as.matrix(dtm_training),y = c(rep(0, 320), rep(1, 320)), family = "binomial",
+                   type.measure = "class", nfolds = 5)
 
+# PREDICT ON TEST DATA
+probabilities_lmin <- predict(cv_model_lr, newx =  as.matrix(dtm_test), type="response", s = cv_model_lr$lambda.min) # newx = test-data
+probabilities_1se <- predict(cv_model_lr, newx =  as.matrix(dtm_test), type="response", s = cv_model_lr$lambda.1se) # newx = test-data
+# probabilities_full <- predict(cv_model_lr, newx =  as.matrix(dtm_test), type="response") # newx = test-data
 
-# # Regularized logistic regression:
-# # x: input matrix of dimension nr. obs. * nr. vars. (each row one observation)
-# # y: response variable
-# # (https://glmnet.stanford.edu/articles/glmnet.html#logistic-regression)
-# # set.seed(421)
-# rlr <- glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), family = "binomial", nlambda=100)
-# plot(rlr)
-# 
-# # predict(rlr, newx=sparse_train, type="response")
-# 
-# lrlr <- glmnet(x = as.matrix(class_dtm_full_2), y = c(rep("deceptive", 320), rep("truthfull", 320)), family = "binomial")
-# predict(lrlr, newx = as.matrix(test_dtm), type= "response")
-# 
-# cvrlr<- cv.glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), family = "binomial", type.measure = "class")
-# plot(cvrlr)
-# predict(cvrlr, newx = as.matrix(dtm_test), type="response")
-# 
-# cvrlr$lambda.min
-# cvrlr$lambda.1se
-# 
-# # Final model with lambda.min
-# lasso.model <- glmnet(x = as.matrix(sparse), y = c(rep(FALSE, 320), rep(TRUE, 320)), alpha = 1, family = "binomial",
-#                       lambda = cvrlr$lambda.min)
-# 
-# # Make prediction on test data
-# probabilities <- predict(lasso.model, newx = sparse_test, type="response") # newx = test-data
-# predicted.classes <- ifelse(probabilities > 0.5, "truthful", "deceptive") 
+predicted_classes_lmin <- ifelse(probabilities_lmin > 0.5, "truthful", "deceptive") 
+predicted_classes_1se <- ifelse(probabilities_1se > 0.5, "truthful", "deceptive")
+# predicted_classes_full <- ifelse(probabilities_full > 0.5, "truthful", "deceptive")
 
 # Model accuracy
-observed.classes <- test_data$labels
-mean(predicted.classes == observed.classes)
+conf_matrix <- table(true = txt_test$labels, pred = predicted_classes_1se)
 
+TP <- conf_matrix[1,1]
+FP <- conf_matrix[1,2]
+FN <- conf_matrix[2,1]
+TN <- conf_matrix[2,2]
 
-# function for accuracy, precision, and F1-score
-confusionmatrix <- function(true, pred) {
-  conf_matrix <- table(true = true, pred = pred)
-  
-  TP <- conf_matrix[1,1]
-  FP <- conf_matrix[1,2]
-  FN <- conf_matrix[2,1]
-  TN <- conf_matrix[2,2]
-  
-  accuracy <- (TP + TN) / (TP + TN + FP + FN)
-  
-  precision <- (TP) / (TP + FP)
-  
-  F1 <- (2 * TP) / (2 * TP + FP + FN)
-}
+accuracy <- (TP + TN) / (TP + TN + FP + FN)
+precision <- (TP) / (TP + FP)  
+F1 <- (2 * TP) / (2 * TP + FP + FN)
+recall = TP/(TP+FN)
+
+print(c(accuracy, precision, recall, F1))
+
+# names <- rownames(coef(cv_model_lr, s = 'lambda.1se'))[coef(cv_model_lr, s = 'lambda.1se')[,1]!= 0] ### returns nonzero coefs
+# prediction <- (coef(cv_model_lr, s = "lambda.1se")[coef(cv_model_lr, s = 'lambda.1se')[,1]!= 0])
+# 
+# tbbl <- tibble (names = names, prediction = prediction)
+# tbbl %>% arrange(prediction)
 
 # Classification Tree
 train_data <- clean_df
