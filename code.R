@@ -62,16 +62,15 @@ train.mnb <- function (dtm,labels)
   list(call=call,prior=prior,cond.probs=cond.probs)    
 }
 
-predict.mnb <-
-  function (model,dtm) 
-  {
-    classlabels <- dimnames(model$cond.probs)[[2]]
-    logprobs <- dtm %*% log(model$cond.probs)
-    N <- nrow(dtm)
-    nclass <- ncol(model$cond.probs)
-    logprobs <- logprobs+matrix(nrow=N,ncol=nclass,log(model$prior),byrow=T)
-    classlabels[max.col(logprobs)]
-  }
+predict.mnb <- function (model,dtm) 
+{
+  classlabels <- dimnames(model$cond.probs)[[2]]
+  logprobs <- dtm %*% log(model$cond.probs)
+  N <- nrow(dtm)
+  nclass <- ncol(model$cond.probs)
+  logprobs <- logprobs+matrix(nrow=N,ncol=nclass,log(model$prior),byrow=T)
+  classlabels[max.col(logprobs)]
+}
 
 # Create corpus
 # Negative deceptive 
@@ -767,10 +766,42 @@ sparse_test <- as.matrix(dtm_test)
 
 sparse_train <- as.matrix(sparse)
 
-# Multinominal naive bayes:
-naive_bayes <- train.mnb(dtm = class_dtm_c,labels=c('deceptive','truthful')) 
 
-prediction <- predict.mnb(model=naive_bayes, dtm = test_dtm)
+# Multinominal naive bayes:
+#naive_bayes <- train.mnb(dtm = dtm_training,labels=c('deceptive','truthful'))
+
+#prediction <- predict.mnb(model=naive_bayes, dtm = as.matrix(dtm_test))
+
+#conf_matrix_mnb <- table(true = c(rep("deceptive", 80), rep("truthful", 80)), pred = prediction)
+
+# CREATE TEST SETS WITH BIGRAMS
+#dtm_test <- dtm_full[dtm_full$dimnames$Docs %in% txt_test$doc_id,]
+#dtm_training <- dtm_full[!dtm_full$dimnames$Docs %in% txt_test$doc_id,]
+
+# CREATE TEST SETS WITHOUT BIGRAMS
+dtm_test <- dtm_full_single_words[dtm_full_single_words$dimnames$Docs %in% txt_test$doc_id,]
+dtm_training <- dtm_full_single_words[!dtm_full_single_words$dimnames$Docs %in% txt_test$doc_id,]
+
+naive_bayes <- multinomial_naive_bayes(x = as.matrix(dtm_training), y = c(rep("deceptive", 320), rep("truthful", 320)))
+summary(naive_bayes)
+
+prediction <- predict(naive_bayes, newdata = as.matrix(dtm_test), type = "class")
+
+conf_matrix_mnb <- table(true = c(rep("deceptive", 80), rep("truthful", 80)), pred = prediction)
+conf_matrix_mnb
+
+# accuracy, precision, recall, F1
+TP <- conf_matrix_mnb[1,1]
+FP <- conf_matrix_mnb[1,2]
+FN <- conf_matrix_mnb[2,1]
+TN <- conf_matrix_mnb[2,2]
+
+accuracy <- (TP + TN) / (TP + TN + FP + FN)
+precision <- (TP) / (TP + FP)  
+F1 <- (2 * TP) / (2 * TP + FP + FN)
+recall = TP/(TP+FN)
+
+print(c(accuracy, precision, recall, F1))
 
 ### LOGISTIC REGRESSION
 dtm_full_tr <- df_full_training %>%
@@ -778,8 +809,8 @@ dtm_full_tr <- df_full_training %>%
   cast_dtm(document = doc_id, term = word, value = n)
 
 # # CREATE TEST SETS WITH BIGRAMS
-# dtm_test <- dtm_full[dtm_full$dimnames$Docs %in% txt_test$doc_id,]
-# dtm_training <- dtm_full[!dtm_full$dimnames$Docs %in% txt_test$doc_id,]
+#dtm_test <- dtm_full[dtm_full$dimnames$Docs %in% txt_test$doc_id,]
+#dtm_training <- dtm_full[!dtm_full$dimnames$Docs %in% txt_test$doc_id,]
 
 # CREATE TEST SETS WITHOUT BIGRAMS
 dtm_test <- dtm_full_single_words[dtm_full_single_words$dimnames$Docs %in% txt_test$doc_id,]
