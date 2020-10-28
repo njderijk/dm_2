@@ -93,8 +93,8 @@ list_of_files_t <- list.files(path = "./truthful/allfortm_t", recursive = TRUE,
 txt_t <- readtext(paste0(list_of_files_t))
 
 list_of_files_test <- list.files(path = "./test", recursive = TRUE,
-                              pattern = "*.txt", 
-                              full.names = TRUE)
+                                 pattern = "*.txt", 
+                                 full.names = TRUE)
 txt_test <- readtext(paste0(list_of_files_test))
 labels_test <- c(rep("deceptive", 80), rep("truthful",80))
 
@@ -112,6 +112,9 @@ txt_test <- txt_test %>%
 
 stopwords <- tm::stopwords(kind = "en")
 
+
+txt_full <- rbind(txt_c, txt_test)
+
 # Prepare for word_cloud (no further preprocessing: needs to remove stopwords)
 dfm_corpus_t <- txt_c[txt_c$labels == "truthful",] %>%
   corpus(text_field = "text") %>%
@@ -122,7 +125,7 @@ dfm_corpus_t <- txt_c[txt_c$labels == "truthful",] %>%
 dfm_corpus_d <- txt_c[txt_c$labels == "deceptive",] %>%
   corpus(text_field = "text") %>%
   tokens(remove_numbers = FALSE, remove_punct = TRUE, remove_symbols = TRUE, remove_separators = TRUE, split_hyphens	
- = TRUE, remove_url = TRUE) %>%
+         = TRUE, remove_url = TRUE) %>%
   dfm()
 
 # Textplot wordcloud
@@ -474,7 +477,7 @@ quickplot(sentiment, data=sent_td_new2, weight=count, geom="bar", fill=sentiment
 
 # N-grams
 
-  # Bigrams for truthful
+# Bigrams for truthful
 ng_bi_t <- ngram(clean_df[clean_df$labels == "truthful",]$text, 2)
 ng_bi_t
 bigrams_t <- get.phrasetable(ng_bi_t)
@@ -483,7 +486,7 @@ df_bigrams_t <- as.data.frame(bigrams_t)
 par(mar=c(9,3,3,3))
 barplot(df_bigrams_t$freq[0:10], names.arg=df_bigrams_t$ngrams[0:10], las=2)
 
-  # Bigrams for deceptive
+# Bigrams for deceptive
 ng_bi_d <- ngram(clean_df[clean_df$labels == "deceptive",]$text, 2)
 ng_bi_d
 bigrams_d <- get.phrasetable(ng_bi_d)
@@ -508,7 +511,7 @@ par(mar=c(12,4,4,4))
 barplot(df_bigrams_d$freq[0:10], names.arg=df_bigrams_d$ngrams[0:10], las=2)
 
 
-  # Trigram for truthful
+# Trigram for truthful
 ng_tri_t <- ngram(clean_df[clean_df$labels == "truthful",]$text, 3)
 ng_tri_t
 trigrams_t <- get.phrasetable(ng_tri_t)
@@ -567,7 +570,7 @@ n_gram_list <- txt_c %>%
     !str_detect(word1, pattern = "\\b(.)\\b"), # removes any remaining single letter words
     !str_detect(word1, pattern = "\\b(.)\\b")
   ) %>%
-  unite("bigram", c(word1, word2), sep = " ") %>%
+  unite("bigram", c(word1, word2), sep = "-") %>%
   count(bigram) %>%
   filter(n >= 5) %>% # filter for bi-grams used 10 or more times
   pull(bigram)
@@ -582,9 +585,9 @@ n_gram_list_2 <- txt_c %>%
   select(c("text", "labels", "doc_id")) %>% 
   unnest_tokens(word, input=text, token = "ngrams", n = 2) %>%
   filter(word %in% n_gram_list) # filter for only bi-grams in the ngram_list
-  # count(doc_id, bigram) %>% # count bi-gram useage by doc ID
-  # spread(bigram, n) %>% # convert to wide format
-  # map_df(replace_na, 0) # replace NAs with 0
+# count(doc_id, bigram) %>% # count bi-gram useage by doc ID
+# spread(bigram, n) %>% # convert to wide format
+# map_df(replace_na, 0) # replace NAs with 0
 
 # create ngram - 1 features
 n_gram_list_1 <- txt_c %>%
@@ -651,10 +654,10 @@ test_dtm
 ### 640 (truthful, deceptive) - 180 test (deceptive, truthful)
 txt_full <- rbind(txt_c,txt_test)
 
-n_gram_list_full_2 <- txt_full %>%
+n_gram_list_full_2b <- txt_full %>%
   select(c("text", "labels", "doc_id")) %>%
-  unnest_tokens(output = bigram, input = text, token = "ngrams", n =2) %>%
-  separate(bigram, c("word1", "word2"), sep = " ") %>%
+  unnest_tokens(output = word, input = text, token = "ngrams", n =2) %>%
+  separate(word, c("word1", "word2"), sep = " ") %>%
   filter(
     !word1 %in% stop_words$word,                 # remove stopwords from both words in bi-gram
     !word2 %in% stop_words$word,
@@ -667,22 +670,7 @@ n_gram_list_full_2 <- txt_full %>%
     !str_detect(word1, pattern = "\\b(.)\\b"), # removes any remaining single letter words
     !str_detect(word1, pattern = "\\b(.)\\b")
   ) %>%
-  unite("bigram", c(word1, word2), sep = " ") %>%
-  count(bigram) %>%
-  pull(bigram)
-
-# sneak peek at our bi-gram list
-head(n_gram_list_full_2)
-length(n_gram_list_full_2)
-
-# Adding 51596 new features 
-n_gram_list_full_2b <- txt_full %>%
-  select(c("text", "labels", "doc_id")) %>% 
-  unnest_tokens(word, input=text, token = "ngrams", n = 2) %>%
-  filter(word %in% n_gram_list_full_2) # filter for only bi-grams in the ngram_list
-# count(doc_id, bigram) %>% # count bi-gram useage by doc ID
-# spread(bigram, n) %>% # convert to wide format
-# map_df(replace_na, 0) # replace NAs with 0
+  unite("word", c(word1, word2), sep = "") 
 
 # create ngram - 1 features
 n_gram_list_full_1 <- txt_full %>%
@@ -700,13 +688,13 @@ n_gram_list_full_1 <- txt_full %>%
 full_set <- rbind(n_gram_list_full_1, n_gram_list_full_2b)
 
 dtm_full <- full_set %>%
-    count(doc_id, word) %>%
-    cast_dtm(document = doc_id, term = word, value = n)
+  count(doc_id, word) %>%
+  cast_dtm(document = doc_id, term = word, value = n)
 
 dtm_full_single_words <- n_gram_list_full_1 %>%
   count(doc_id, word) %>%
   cast_dtm(document = doc_id, term = word, value = n)
-  
+
 dtm_full_test <- full_set %>%
   filter(doc_id %in% txt_test$doc_id) %>%
   count(doc_id, word) %>%
@@ -717,16 +705,31 @@ df_full <- full_set %>%
   spread(word, n) %>% # convert to wide format
   map_df(replace_na, 0)
 
+df_training <- full_set %>%
+  count(doc_id, word) %>%
+  pivot_wider(names_from = word, values_from = n) %>%
+  map_df(replace_na, 0) %>%
+  filter(!doc_id %in% txt_test$doc_id) %>%
+  add_column(labels = c(rep(0,320), rep(1,320)))
+
+df_test <- full_set %>%
+  count(doc_id, word) %>%
+  pivot_wider(names_from = word, values_from = n) %>%
+  map_df(replace_na, 0) %>%
+  filter(doc_id %in% txt_test$doc_id) %>%
+  add_column(labels = c(rep(0,80), rep(1,80)))
+
+
 df_full_training <- full_set %>%
-   filter(!doc_id %in% txt_test$doc_id) %>%
-   add_column(labels = c(rep(0,320), rep(1,320)))
+  filter(!doc_id %in% txt_test$doc_id) %>%
+  add_column(labels = c(rep(0,320), rep(1,320)))
 
 dtm_full_training <-  full_set %>%
   filter(!doc_id %in% txt_test$doc_id) %>%
   count(doc_id, word) %>%
   cast_dtm(document = doc_id, term = word, value = n)
 
- dtm_full_training
+dtm_full_training
 # DECEPTIVE == 0, TRUTHFULL == 1
 
 # word counts per document
@@ -818,7 +821,7 @@ dtm_training <- dtm_full_single_words[!dtm_full_single_words$dimnames$Docs %in% 
 
 # find hyper-parameters
 cv_model_lr <- cv.glmnet(x = as.matrix(dtm_training),y = c(rep(0, 320), rep(1, 320)), family = "binomial",
-                   type.measure = "class", nfolds = 5)
+                         type.measure = "class", nfolds = 5)
 
 # PREDICT ON TEST DATA
 probabilities_lmin <- predict(cv_model_lr, newx =  as.matrix(dtm_test), type="response", s = cv_model_lr$lambda.min) # newx = test-data
@@ -1036,7 +1039,7 @@ RF_model = randomForest(class ~ ., data=trainSparse_similar_cols, type="class")
 which(colnames(testSparse)=="class" ) # 718
 predictRF = predict(RF_model, newdata=testSparse[-718], type="class")
 
-  # Model accuracy (Random Forest)
+# Model accuracy (Random Forest)
 conf_matrix_rf <- table(true = txt_test$labels, pred = predictRF)
 
 TP_rf <- conf_matrix_rf[1,1]
@@ -1114,24 +1117,16 @@ print(c(accuracy_rf, precision_rf, recall_rf, F1_rf))
 # Random Forest Bigrams (without tuning)
 set.seed(23)
 
-train_bigrams <- as.data.frame(as.matrix(dtm_full_training))
-test_bigrams <- as.data.frame(as.matrix(dtm_full_test))
+train_bigrams <- df_training
+test_bigrams <- df_test
+
+# train_bigrams <- as.data.frame(as.matrix(dtm_full_training))
+# test_bigrams <- as.data.frame(as.matrix(dtm_full_test))
 
 train_bigrams_similar_cols <- train_bigrams %>%
   select(one_of(c(colnames(test_bigrams))))
-
-labels_train <- c(rep("truthful",320), rep("deceptive",320))
-labels_test <- c(rep("deceptive", 80), rep("truthful",80))
-
-# Complete text with labels [640x]
-train_bigrams_similar_cols <- train_bigrams_similar_cols %>%
-  add_column(class = as.factor(labels_train)) 
-
-# Complete test set with labels [160x]
-test_bigrams <- test_bigrams %>%
-  add_column(class = as.factor(labels_test))
-
-RF_model_bi = randomForest(class ~ ., data=train_bigrams_similar_cols, type="response")
+         
+RF_model_bi = randomForest(labels ~ ., data=train_bigrams_similar_cols, type="response")
 which(colnames(test_bigrams)=="class" ) # 718
 predictRF_bi = predict(RF_model_tuned, newdata=test_bigrams[-1059], type="class")
 
