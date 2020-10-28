@@ -1147,6 +1147,7 @@ print(c(accuracy_rf_bi, precision_rf_bi, recall_rf_bi, F1_rf_bi))
 
 
 # Random Forest Bigrams (with tuning)
+
 #create a task
 traintask <- makeClassifTask(data = trainSparse_similar_cols, target = "class") 
 testtask <- makeClassifTask(data = testSparse, target = "class")
